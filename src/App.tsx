@@ -318,14 +318,14 @@ export default function App() {
     }
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
+  const currentQuestion = questions && questions.length > 0 ? questions[currentQuestionIndex] : null;
 
   useEffect(() => {
     if (currentQuestion) {
       setLanguage(currentQuestion.language || 'python');
       setCode(currentQuestion.buggyCode[currentQuestion.language as keyof typeof currentQuestion.buggyCode] || '');
     }
-  }, [currentQuestionIndex, questions]);
+  }, [currentQuestionIndex, questions, currentQuestion]);
 
   const handleRunCode = async () => {
     setIsCompiling(true);
@@ -388,15 +388,18 @@ export default function App() {
     }
   };
 
-  if (loading) {
+  if (loading || loadingQuestions) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <motion.div
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <img src="/logo.png" alt="ByteXL Logo" className="h-12 w-auto object-contain" />
-        </motion.div>
+        <div className="flex flex-col items-center gap-4">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <img src="/logo.png" alt="ByteXL Logo" className="h-12 w-auto object-contain" />
+          </motion.div>
+          <p className="text-slate-500 text-xs font-medium animate-pulse">Initializing Platform...</p>
+        </div>
       </div>
     );
   }
@@ -625,14 +628,22 @@ export default function App() {
               {/* Question Header */}
               <div className="p-6 bg-white border-bottom border-slate-300">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold">{currentQuestion.title}</h2>
-                    <p className="text-slate-600 mt-1 text-sm">{currentQuestion.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2 bg-blue-600/10 px-3 py-1.5 rounded-lg border border-blue-600/20">
-                    <Trophy className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs font-bold text-blue-600">{currentQuestion.points} pts</span>
-                  </div>
+                  {currentQuestion ? (
+                    <>
+                      <div>
+                        <h2 className="text-xl font-bold">{currentQuestion.title}</h2>
+                        <p className="text-slate-600 mt-1 text-sm">{currentQuestion.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-blue-600/10 px-3 py-1.5 rounded-lg border border-blue-600/20">
+                        <Trophy className="w-4 h-4 text-blue-600" />
+                        <span className="text-xs font-bold text-blue-600">{currentQuestion.points} pts</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 py-4 text-center text-slate-400 italic text-sm">
+                      Question data unavailable. Contact admin to seed questions.
+                    </div>
+                  )}
                 </div>
               </div>
 
