@@ -53,18 +53,49 @@ db.exec(`
 app.post('/api/execute', async (req, res) => {
   const { language, sourceCode } = req.body;
 
-  if (language !== 'python') {
-    return res.status(400).json({ error: 'Only Python is supported in offline mode currently.' });
+  const validLanguages = ['python', 'java', 'c', 'cpp'];
+  if (!validLanguages.includes(language)) {
+    return res.status(400).json({ error: `Language ${language} is not supported.` });
   }
 
-  const fileName = `temp_${Date.now()}.py`;
+  const timestamp = Date.now();
+  let fileName = '';
+  let executeCmd = '';
+
+  if (language === 'python') {
+    fileName = `temp_${timestamp}.py`;
+    executeCmd = `python "${fileName}"`;
+  } else if (language === 'java') {
+    // Java requires the class name to match the file name if it's public.
+    // Assuming the user submits a class named Main or similar.
+    // For simplicity, we can name it Main.java and use that.
+    fileName = 'Main.java';
+    executeCmd = `javac "${fileName}" && java Main`;
+  } else if (language === 'c') {
+    fileName = `temp_${timestamp}.c`;
+    // On Windows, use .exe, on Unix use no extension or .out
+    const exeName = process.platform === 'win32' ? `temp_${timestamp}.exe` : `temp_${timestamp}`;
+    executeCmd = `gcc "${fileName}" -o "${exeName}" && "${process.platform === 'win32' ? '' : './'}${exeName}"`;
+  } else if (language === 'cpp') {
+    fileName = `temp_${timestamp}.cpp`;
+    const exeName = process.platform === 'win32' ? `temp_${timestamp}.exe` : `temp_${timestamp}`;
+    executeCmd = `g++ "${fileName}" -o "${exeName}" && "${process.platform === 'win32' ? '' : './'}${exeName}"`;
+  }
+
   const filePath = join(process.cwd(), fileName);
 
   try {
     await writeFile(filePath, sourceCode);
 
-    exec(`python "${filePath}"`, (error, stdout, stderr) => {
+    exec(executeCmd, { cwd: process.cwd() }, (error, stdout, stderr) => {
+      // Cleanup files
       unlink(filePath).catch(console.error);
+      if (language === 'java') {
+        unlink(join(process.cwd(), 'Main.class')).catch(() => {});
+      } else if (language === 'c' || language === 'cpp') {
+        const exeName = process.platform === 'win32' ? `temp_${timestamp}.exe` : `temp_${timestamp}`;
+        unlink(join(process.cwd(), exeName)).catch(() => {});
+      }
 
       res.json({
         stdout: stdout,

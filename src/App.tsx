@@ -750,10 +750,25 @@ export default function App() {
 
               {/* Editor Toolbar */}
               <div className="h-12 bg-slate-50 border-bottom border-slate-300 flex items-center justify-between px-4">
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all bg-slate-200 text-slate-500">
-                    Language: {currentQuestion.language || 'Unknown'}
-                  </span>
+                <div className="flex items-center gap-1.5">
+                  {(['python', 'java', 'c', 'cpp'] as const).map(lang => {
+                    const isActive = lang === (currentQuestion.language || 'python');
+                    return (
+                      <button
+                        key={lang}
+                        disabled={!isActive}
+                        className={cn(
+                          "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                          isActive
+                            ? "bg-blue-600 text-white cursor-default"
+                            : "bg-slate-100 text-slate-300 cursor-not-allowed line-through opacity-50"
+                        )}
+                        title={isActive ? `Active: ${lang}` : `Disabled for this question`}
+                      >
+                        {lang}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="flex items-center gap-4">
                   <button
