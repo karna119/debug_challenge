@@ -42,6 +42,8 @@ import {
   orderBy,
   limit,
   addDoc,
+  deleteDoc,
+  getDocs,
   serverTimestamp
 } from 'firebase/firestore';
 import { QUESTIONS, Question } from './questions';
@@ -153,11 +155,26 @@ export default function App() {
         const data = await res.json();
         setQuestions(data);
       } else {
-        // Fallback to static for now if not using firebase/firestore for questions
-        setQuestions(QUESTIONS);
+        // Online mode: fetch from Firestore 'questions' collection
+        const snapshot = await getDocs(collection(db, 'questions'));
+        if (snapshot.empty) {
+          // No questions in Firestore yet - fall back to static list
+          setQuestions(QUESTIONS);
+        } else {
+          const data = snapshot.docs.map(d => ({
+            id: parseInt(d.id) || d.data().id,
+            ...d.data(),
+            _firestoreId: d.id  // keep the real Firestore doc ID for edits
+          })) as any[];
+          // Sort by id ascending
+          data.sort((a, b) => (a.id || 0) - (b.id || 0));
+          setQuestions(data);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch questions:', error);
+      // Fallback to static
+      setQuestions(QUESTIONS);
     } finally {
       setLoadingQuestions(false);
     }
@@ -360,28 +377,44 @@ export default function App() {
     if (!editingQuestion) return;
     setIsSavingQuestion(true);
     try {
-      const method = editingQuestion.id ? 'PUT' : 'POST';
-      const url = editingQuestion.id
-        ? `${LOCAL_API_URL}/questions/${editingQuestion.id}`
-        : `${LOCAL_API_URL}/questions`;
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingQuestion)
-      });
-
-      if (res.ok) {
+      if (IS_OFFLINE) {
+        const method = editingQuestion.id ? 'PUT' : 'POST';
+        const url = editingQuestion.id
+          ? `${LOCAL_API_URL}/questions/${editingQuestion.id}`
+          : `${LOCAL_API_URL}/questions`;
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editingQuestion)
+        });
+        if (res.ok) {
+          await fetchQuestions();
+          setEditingQuestion(null);
+          alert('✅ Question saved successfully!');
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          alert(`❌ Failed to save: ${errData.error || res.statusText}`);
+        }
+      } else {
+        // Online mode: save to Firestore
+        const firestoreId = (editingQuestion as any)._firestoreId;
+        const dataToSave = { ...editingQuestion };
+        delete (dataToSave as any)._firestoreId;
+        if (firestoreId) {
+          // Update existing
+          await setDoc(doc(db, 'questions', firestoreId), dataToSave, { merge: true });
+        } else {
+          // New question: auto-generate next id
+          const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id || 0)) + 1 : 1;
+          await addDoc(collection(db, 'questions'), { ...dataToSave, id: newId });
+        }
         await fetchQuestions();
         setEditingQuestion(null);
-        alert('✅ Question saved successfully!');
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(`❌ Failed to save: ${errData.error || res.statusText}`);
+        alert('✅ Question saved to Firestore!');
       }
     } catch (error: any) {
       console.error('Failed to save question:', error);
-      alert(`❌ Save failed: ${error.message}. Make sure the local server is running.`);
+      alert(`❌ Save failed: ${error.message}`);
     } finally {
       setIsSavingQuestion(false);
     }
@@ -390,8 +423,16 @@ export default function App() {
   const handleDeleteQuestion = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this question?')) return;
     try {
-      const res = await fetch(`${LOCAL_API_URL}/questions/${id}`, { method: 'DELETE' });
-      if (res.ok) {
+      if (IS_OFFLINE) {
+        const res = await fetch(`${LOCAL_API_URL}/questions/${id}`, { method: 'DELETE' });
+        if (res.ok) await fetchQuestions();
+      } else {
+        // Online mode: delete from Firestore using the _firestoreId
+        const q = questions.find(q => q.id === id) as any;
+        const firestoreId = q?._firestoreId;
+        if (firestoreId) {
+          await deleteDoc(doc(db, 'questions', firestoreId));
+        }
         await fetchQuestions();
       }
     } catch (error) {
