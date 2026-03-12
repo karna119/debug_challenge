@@ -397,9 +397,10 @@ export default function App() {
 
   useEffect(() => {
     if (currentQuestion) {
-      setCode(currentQuestion.buggyCode[language as keyof typeof currentQuestion.buggyCode] || '');
+      setLanguage(currentQuestion.language || 'python');
+      setCode(currentQuestion.buggyCode[currentQuestion.language as keyof typeof currentQuestion.buggyCode] || '');
     }
-  }, [currentQuestionIndex, language]);
+  }, [currentQuestionIndex]);
 
   const handleRunCode = async () => {
     setIsCompiling(true);
@@ -750,18 +751,9 @@ export default function App() {
               {/* Editor Toolbar */}
               <div className="h-12 bg-slate-50 border-bottom border-slate-300 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
-                  {['python', 'java', 'c', 'cpp'].map(lang => (
-                    <button
-                      key={lang}
-                      onClick={() => setLanguage(lang)}
-                      className={cn(
-                        "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
-                        language === lang ? "bg-blue-600 text-white" : "text-slate-500 hover:text-slate-600"
-                      )}
-                    >
-                      {lang}
-                    </button>
-                  ))}
+                  <span className="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all bg-slate-200 text-slate-500">
+                    Language: {currentQuestion.language || 'Unknown'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-4">
                   <button
@@ -961,8 +953,9 @@ export default function App() {
 
               <div className="flex-1 overflow-auto p-4">
                 {adminTab === 'users' ? (
-                  <table className="w-full">
-                    <thead className="sticky top-0 bg-white z-10">
+                  <>
+                    <table className="w-full">
+                      <thead className="sticky top-0 bg-white z-10">
                       <tr className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 border-bottom border-slate-200">
                         <th className="px-4 py-3">Participant</th>
                         <th className="px-4 py-3">Team</th>
@@ -997,6 +990,21 @@ export default function App() {
                       ))}
                     </tbody>
                   </table>
+                  <div className="p-4 mt-6 border-t border-slate-200 flex justify-end">
+                    <button
+                      onClick={async () => {
+                        if (window.confirm("Are you SURE you want to reset the leaderboard? This clears all student scores!")) {
+                          await fetch(`${LOCAL_API_URL}/admin/reset`, { method: 'POST' });
+                          alert("Leaderboard Reset Successfully");
+                          setShowAdminDashboard(false);
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg text-sm hover:bg-red-700 transition"
+                    >
+                      Reset Leaderboard Data
+                    </button>
+                  </div>
+                  </>
                 ) : (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center px-4">
@@ -1006,6 +1014,7 @@ export default function App() {
                           title: '',
                           description: '',
                           points: 10,
+                          language: 'python',
                           buggyCode: { python: '', java: '', c: '', cpp: '' },
                           testCases: [{ input: '', expectedOutput: '' }]
                         })}
@@ -1094,7 +1103,7 @@ export default function App() {
                       </div>
 
                       <div className="flex-1 overflow-auto p-8 space-y-6">
-                        <div className="grid grid-cols-3 gap-6">
+                        <div className="grid grid-cols-4 gap-6">
                           <div className="col-span-2">
                             <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Title</label>
                             <input
@@ -1104,6 +1113,19 @@ export default function App() {
                               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600/50"
                               placeholder="e.g. 🐍 The Infinite Snake Loop"
                             />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Language</label>
+                            <select
+                              value={editingQuestion.language || 'python'}
+                              onChange={e => setEditingQuestion({ ...editingQuestion, language: e.target.value as any })}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600/50"
+                            >
+                              <option value="python">Python</option>
+                              <option value="java">Java</option>
+                              <option value="c">C</option>
+                              <option value="cpp">C++</option>
+                            </select>
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Points</label>
@@ -1129,93 +1151,47 @@ export default function App() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
-                          {['python', 'java', 'c', 'cpp'].map((lang) => (
-                            <div key={lang}>
+                        <div className="grid grid-cols-1 gap-6">
+                            <div>
                               <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-                                <Languages className="w-3 h-3" /> {lang} Buggy Code
+                                <Languages className="w-3 h-3" /> {(editingQuestion.language || 'python').toUpperCase()} Buggy Code
                               </label>
                               <div className="h-48 border border-slate-300 rounded-xl overflow-hidden">
                                 <Editor
                                   height="100%"
-                                  language={lang === 'cpp' ? 'cpp' : lang === 'c' ? 'c' : lang}
+                                  language={editingQuestion.language === 'cpp' ? 'cpp' : editingQuestion.language === 'c' ? 'c' : editingQuestion.language || 'python'}
                                   theme="light"
-                                  value={editingQuestion.buggyCode?.[lang as keyof typeof editingQuestion.buggyCode] || ''}
+                                  value={editingQuestion.buggyCode?.[(editingQuestion.language || 'python') as keyof typeof editingQuestion.buggyCode] || ''}
                                   onChange={v => setEditingQuestion({
                                     ...editingQuestion,
-                                    buggyCode: { ...editingQuestion.buggyCode!, [lang]: v || '' }
+                                    buggyCode: { ...editingQuestion.buggyCode!, [editingQuestion.language || 'python']: v || '' }
                                   } as any)}
                                   options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 } }}
                                 />
                               </div>
                             </div>
-                          ))}
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Test Cases</label>
-                          <div className="space-y-3">
-                            {editingQuestion.testCases?.map((tc, tcIdx) => (
-                              <div key={tcIdx} className="grid grid-cols-2 gap-4 bg-slate-100 p-4 rounded-xl relative group">
-                                <div>
-                                  <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-300 mb-1">Input</label>
-                                  <div className="h-32 border border-slate-300 rounded-lg overflow-hidden">
-                                    <Editor
-                                      height="100%"
-                                      language="plaintext"
-                                      theme="light"
-                                      value={tc.input}
-                                      onChange={v => {
-                                        const newTcs = [...editingQuestion.testCases!];
-                                        newTcs[tcIdx] = { ...newTcs[tcIdx], input: v || '' };
-                                        setEditingQuestion({ ...editingQuestion, testCases: newTcs });
-                                      }}
-                                      options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 }, lineNumbers: 'off' }}
-                                    />
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-300 mb-1">Expected Output</label>
-                                  <div className="h-32 border border-slate-300 rounded-lg overflow-hidden">
-                                    <Editor
-                                      height="100%"
-                                      language="plaintext"
-                                      theme="light"
-                                      value={tc.expectedOutput}
-                                      onChange={v => {
-                                        const newTcs = [...editingQuestion.testCases!];
-                                        newTcs[tcIdx] = { ...newTcs[tcIdx], expectedOutput: v || '' };
-                                        setEditingQuestion({ ...editingQuestion, testCases: newTcs });
-                                      }}
-                                      options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 }, lineNumbers: 'off' }}
-                                    />
-                                  </div>
-                                </div>
-                                {tcIdx > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newTcs = editingQuestion.testCases!.filter((_, i) => i !== tcIdx);
-                                      setEditingQuestion({ ...editingQuestion, testCases: newTcs });
-                                    }}
-                                    className="absolute -right-2 -top-2 w-6 h-6 bg-red-500 text-slate-900 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => setEditingQuestion({
-                                ...editingQuestion,
-                                testCases: [...editingQuestion.testCases!, { input: '', expectedOutput: '' }]
-                              })}
-                              className="text-[10px] text-blue-600 font-bold hover:underline"
-                            >
-                              + Add Test Case
-                            </button>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Expected Output</label>
+                          <div className="h-48 border border-slate-300 rounded-xl overflow-hidden shadow-sm">
+                            <Editor
+                              height="100%"
+                              language="plaintext"
+                              theme="light"
+                              value={editingQuestion.testCases?.[0]?.expectedOutput || ''}
+                              onChange={v => {
+                                setEditingQuestion({ 
+                                  ...editingQuestion, 
+                                  testCases: [{ input: '', expectedOutput: v || '' }] 
+                                });
+                              }}
+                              options={{ fontSize: 13, minimap: { enabled: false }, padding: { top: 16 }, lineHeight: 24 }}
+                            />
                           </div>
+                          <p className="text-xs text-slate-500 mt-2">
+                            The student's code output will be compared against this expected output exactly snippet-by-snippet (ignoring extra whitespaces and newlines).
+                          </p>
                         </div>
                       </div>
                     </form>

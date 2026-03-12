@@ -44,7 +44,8 @@ db.exec(`
     java_code TEXT,
     c_code TEXT,
     cpp_code TEXT,
-    test_cases TEXT
+    test_cases TEXT,
+    language TEXT
   );
 `);
 
@@ -92,16 +93,17 @@ app.get('/api/questions', (req, res) => {
       c: q.c_code,
       cpp: q.cpp_code
     },
-    testCases: JSON.parse(q.test_cases || '[]')
+    testCases: JSON.parse(q.test_cases || '[]'),
+    language: q.language
   }));
   res.json(formatted);
 });
 
 app.post('/api/questions', (req, res) => {
-  const { title, description, points, buggyCode, testCases } = req.body;
+  const { title, description, points, buggyCode, testCases, language } = req.body;
   const stmt = db.prepare(`
-    INSERT INTO questions (title, description, points, python_code, java_code, c_code, cpp_code, test_cases)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO questions (title, description, points, python_code, java_code, c_code, cpp_code, test_cases, language)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     title,
@@ -111,18 +113,19 @@ app.post('/api/questions', (req, res) => {
     buggyCode.java,
     buggyCode.c,
     buggyCode.cpp,
-    JSON.stringify(testCases)
+    JSON.stringify(testCases),
+    language
   );
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
 app.put('/api/questions/:id', (req, res) => {
-  const { title, description, points, buggyCode, testCases } = req.body;
+  const { title, description, points, buggyCode, testCases, language } = req.body;
   const stmt = db.prepare(`
     UPDATE questions SET 
       title = ?, description = ?, points = ?, 
       python_code = ?, java_code = ?, c_code = ?, cpp_code = ?, 
-      test_cases = ?
+      test_cases = ?, language = ?
     WHERE id = ?
   `);
   stmt.run(
@@ -134,6 +137,7 @@ app.put('/api/questions/:id', (req, res) => {
     buggyCode.c,
     buggyCode.cpp,
     JSON.stringify(testCases),
+    language,
     req.params.id
   );
   res.json({ success: true });
@@ -174,6 +178,21 @@ app.get('/api/leaderboard', (req, res) => {
 app.get('/api/admin/users', (req, res) => {
   const users = db.prepare('SELECT * FROM users ORDER BY lastActive DESC').all();
   res.json(users);
+});
+
+// Reset Leaderboard (Admin)
+app.post('/api/admin/reset', (req, res) => {
+  try {
+    const transaction = db.transaction(() => {
+      db.prepare('DELETE FROM submissions').run();
+      db.prepare('UPDATE users SET score = 0, completed = 0').run();
+    });
+    transaction();
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Reset error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Submissions

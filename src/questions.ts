@@ -13,6 +13,7 @@ export interface Question {
     expectedOutput: string;
   }[];
   points: number;
+  language: 'python' | 'java' | 'c' | 'cpp';
 }
 
 export const QUESTIONS: Question[] = [
@@ -27,7 +28,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint main() {\n    int i = 1;\n    while(i <= 5) {\n        std::cout << i << \" \";\n        // increment me!\n    }\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "1\n2\n3\n4\n5\n" }],
-    points: 10
+    points: 10,
+    language: 'python'
   },
   {
     id: 2,
@@ -40,7 +42,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint main() {\n    for(int i = 1; i = 5; i++) {\n        std::cout << i << \" \";\n    }\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "1 2 3 4 5" }],
-    points: 10
+    points: 10,
+    language: 'c'
   },
   {
     id: 3,
@@ -53,7 +56,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\n#include <string>\nint main() {\n    std::string a = \"hello\";\n    std::string b = \"hello\";\n    if(a == b) std::cout << \"Equal\" << std::endl;\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "Equal\n" }],
-    points: 10
+    points: 10,
+    language: 'java'
   },
   {
     id: 4,
@@ -66,7 +70,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint main() {\n    int numbers[] = {10, 20, 30, 40};\n    for(int i = 0; i < 4; i++) {\n        std::cout << numbers[i+1] << \" \";\n    }\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "10\n20\n30\n40\n" }],
-    points: 15
+    points: 15,
+    language: 'cpp'
   },
   {
     id: 5,
@@ -79,7 +84,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint main() {\n    int sum;\n    for(int i=1; i<=5; i++) sum += i;\n    std::cout << sum;\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "15" }],
-    points: 15
+    points: 15,
+    language: 'python'
   },
   {
     id: 6,
@@ -92,7 +98,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint main() {\n    int i = 1;\n    while(i <= 5) std::cout << i << \" \";\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "1\n2\n3\n4\n5\n" }],
-    points: 15
+    points: 15,
+    language: 'java'
   },
   {
     id: 7,
@@ -105,7 +112,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint add(int a, int b) {\n    int res = a + b;\n}\nint main() {\n    std::cout << add(3, 4);\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "7\n" }],
-    points: 20
+    points: 20,
+    language: 'c'
   },
   {
     id: 8,
@@ -118,7 +126,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\nint main() {\n    int arr[5] = {1, 2, 3, 4, 5};\n    for(int i=0; i<=5; i++) std::cout << arr[i] << \" \";\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "1 2 3 4 5" }],
-    points: 20
+    points: 20,
+    language: 'cpp'
   },
   {
     id: 9,
@@ -131,7 +140,8 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\n#include <string>\nint main() {\n    std::string* name = nullptr;\n    if (*name == \"John\") std::cout << \"Hello John\"; // CRASH\n    return 0;\n}"
     },
     testCases: [{ input: "", expectedOutput: "Hello John\n" }], // Assuming they fix it to work
-    points: 30
+    points: 30,
+    language: 'java'
   },
   {
     id: 10,
@@ -144,6 +154,7 @@ export const QUESTIONS: Question[] = [
       cpp: "#include <iostream>\n#include <vector>\nstd::vector<int> addItem(int item) {\n    static std::vector<int> list;\n    list.push_back(item);\n    return list;\n}"
     },
     testCases: [{ input: "", expectedOutput: "[1]\n[2]\n[3]\n" }],
-    points: 30
+    points: 30,
+    language: 'python'
   }
 ];
