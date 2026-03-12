@@ -150,9 +150,11 @@ export default function App() {
 
   // Fetch questions from Firestore
   const fetchQuestions = useCallback(async () => {
+    console.log('[App] Fetching questions...');
     try {
       const snapshot = await getDocs(collection(db, 'questions'));
       if (snapshot.empty) {
+        console.log('[App] No questions in Firestore, using static list');
         setQuestions(QUESTIONS);
       } else {
         const data = snapshot.docs.map(d => ({
@@ -161,10 +163,11 @@ export default function App() {
           _firestoreId: d.id
         })) as any[];
         data.sort((a, b) => (a.id || 0) - (b.id || 0));
+        console.log(`[App] Loaded ${data.length} questions from Firestore`);
         setQuestions(data);
       }
     } catch (error) {
-      console.error('Failed to fetch questions:', error);
+      console.error('[App] Failed to fetch questions:', error);
       setQuestions(QUESTIONS);
     } finally {
       setLoadingQuestions(false);
@@ -177,20 +180,45 @@ export default function App() {
 
   // Auth listener - Firestore only
   useEffect(() => {
+    console.log('[Auth] Initializing auth listener');
     const unsubscribe = auth.onAuthStateChanged(async (u) => {
+      console.log('[Auth] State changed:', u ? `User: ${u.uid}` : 'Logged out');
       setUser(u);
       if (u) {
-        const userDoc = await getDoc(doc(db, 'users', u.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data() as UserData);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', u.uid));
+          if (userDoc.exists()) {
+            console.log('[Auth] User data found in Firestore');
+            setUserData(userDoc.data() as UserData);
+          } else {
+            console.log('[Auth] No user data found in Firestore');
+            // If it's the admin, we don't necessarily need a document to show the dashboard
+            if (u.email === 'karunakar.pothuganti@gmail.com') {
+              setUserData({
+                uid: u.uid,
+                name: 'Admin',
+                studentId: 'ADMIN',
+                teamNo: '0',
+                score: 0,
+                startTime: new Date().toISOString(),
+                completed: false,
+                lastActive: new Date().toISOString(),
+                email: u.email
+              });
+            }
+          }
+        } catch (err) {
+          console.error('[Auth] Error fetching user data:', err);
         }
+        await fetchQuestions();
       } else {
         setUserData(null);
+        setLoadingQuestions(false); // Even if logged out, stop loading questions
       }
       setLoading(false);
     });
     return unsubscribe;
-  }, []);
+  }, [fetchQuestions]);
 
   // Leaderboard listener - Firestore onSnapshot
   useEffect(() => {
@@ -255,12 +283,17 @@ export default function App() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
+    console.log('[Login] Starting login process...');
     try {
       const u = await signIn();
+      console.log('[Login] Firebase Auth success:', u.uid);
       const userDocRef = doc(db, 'users', u.uid);
       const userDoc = await getDoc(userDocRef);
+      
+      let finalUserData: UserData;
       if (!userDoc.exists()) {
-        const newUserData: UserData = {
+        console.log('[Login] Creating brand new user profile');
+        finalUserData = {
           uid: u.uid,
           name: loginForm.name,
           studentId: loginForm.studentId,
@@ -269,14 +302,20 @@ export default function App() {
           startTime: new Date().toISOString(),
           completed: false,
           lastActive: new Date().toISOString(),
+          email: u.email || undefined
         };
-        await setDoc(userDocRef, newUserData);
-        setUserData(newUserData);
+        await setDoc(userDocRef, finalUserData);
+        console.log('[Login] Profile saved to Firestore');
       } else {
-        setUserData(userDoc.data() as UserData);
+        console.log('[Login] Existing profile found');
+        finalUserData = userDoc.data() as UserData;
       }
-    } catch (error) {
-      console.error('Login failed:', error);
+      
+      setUserData(finalUserData);
+      console.log('[Login] App state updated, ready to start');
+    } catch (error: any) {
+      console.error('[Login] Process failed:', error);
+      alert('Login failed: ' + (error.message || 'Unknown error'));
     } finally {
       setIsLoggingIn(false);
     }
@@ -387,6 +426,18 @@ export default function App() {
       setShowLeaderboard(true);
     }
   };
+
+  // Timeout guard for loading screen
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading || loadingQuestions) {
+        console.warn('[App] Loading timeout reached. Forcing load state to false.');
+        setLoading(false);
+        setLoadingQuestions(false);
+      }
+    }, 10000); // 10 seconds
+    return () => clearTimeout(timer);
+  }, [loading, loadingQuestions]);
 
   if (loading || loadingQuestions) {
     return (
