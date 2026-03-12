@@ -108,6 +108,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 interface UserData {
   uid: string;
+  email?: string;
   name: string;
   studentId: string;
   teamNo: string;
@@ -147,33 +148,23 @@ export default function App() {
 
   const isAdminUser = user?.email === 'karunakar.pothuganti@gmail.com' || (IS_OFFLINE && user?.uid === 'off_ADMIN001');
 
-  // Fetch questions
+  // Fetch questions from Firestore
   const fetchQuestions = useCallback(async () => {
     try {
-      if (IS_OFFLINE) {
-        const res = await fetch(`${LOCAL_API_URL}/questions`);
-        const data = await res.json();
-        setQuestions(data);
+      const snapshot = await getDocs(collection(db, 'questions'));
+      if (snapshot.empty) {
+        setQuestions(QUESTIONS);
       } else {
-        // Online mode: fetch from Firestore 'questions' collection
-        const snapshot = await getDocs(collection(db, 'questions'));
-        if (snapshot.empty) {
-          // No questions in Firestore yet - fall back to static list
-          setQuestions(QUESTIONS);
-        } else {
-          const data = snapshot.docs.map(d => ({
-            id: parseInt(d.id) || d.data().id,
-            ...d.data(),
-            _firestoreId: d.id  // keep the real Firestore doc ID for edits
-          })) as any[];
-          // Sort by id ascending
-          data.sort((a, b) => (a.id || 0) - (b.id || 0));
-          setQuestions(data);
-        }
+        const data = snapshot.docs.map(d => ({
+          id: d.data().id,
+          ...d.data(),
+          _firestoreId: d.id
+        })) as any[];
+        data.sort((a, b) => (a.id || 0) - (b.id || 0));
+        setQuestions(data);
       }
     } catch (error) {
       console.error('Failed to fetch questions:', error);
-      // Fallback to static
       setQuestions(QUESTIONS);
     } finally {
       setLoadingQuestions(false);
@@ -184,27 +175,8 @@ export default function App() {
     fetchQuestions();
   }, [fetchQuestions]);
 
-  // Auth listener
+  // Auth listener - Firestore only
   useEffect(() => {
-    if (IS_OFFLINE) {
-      // Check for persisted session in offline mode
-      const savedUser = localStorage.getItem('offline_user');
-      if (savedUser) {
-        const u = JSON.parse(savedUser);
-        setUser(u);
-        fetch(`${LOCAL_API_URL}/users/${u.uid}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data) {
-              setUserData({ ...data, completed: !!data.completed });
-            }
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
-      }
-      return;
-    }
     const unsubscribe = auth.onAuthStateChanged(async (u) => {
       setUser(u);
       if (u) {
@@ -220,48 +192,28 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Leaderboard listener
+  // Leaderboard listener - Firestore onSnapshot
   useEffect(() => {
     if (!user) return;
-    if (IS_OFFLINE) {
-      const fetchLeaderboard = () => {
-        fetch(`${LOCAL_API_URL}/leaderboard`)
-          .then(res => res.json())
-          .then(data => setLeaderboard(data.filter((u: UserData) => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com')));
-      };
-      fetchLeaderboard();
-      const interval = setInterval(fetchLeaderboard, 5000);
-      return () => clearInterval(interval);
-    }
     const path = 'users';
     const q = query(collection(db, path), orderBy('score', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data() as UserData);
-      setLeaderboard(data.filter(u => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com'));
+      setLeaderboard(data.filter(u => u.name !== 'Admin' && u.email !== 'karunakar.pothuganti@gmail.com'));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, path);
     });
     return unsubscribe;
   }, [user]);
 
-  // Admin: All users listener
+  // Admin: All users listener - Firestore onSnapshot
   useEffect(() => {
     if (isAdminUser && user) {
-      if (IS_OFFLINE) {
-        const fetchAllUsers = () => {
-          fetch(`${LOCAL_API_URL}/admin/users`)
-            .then(res => res.json())
-            .then(data => setAllUsers(data.filter((u: UserData) => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com')));
-        };
-        fetchAllUsers();
-        const interval = setInterval(fetchAllUsers, 5000);
-        return () => clearInterval(interval);
-      }
       const path = 'users';
       const q = query(collection(db, path), orderBy('lastActive', 'desc'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => doc.data() as UserData);
-        setAllUsers(data.filter(u => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com'));
+        setAllUsers(data.filter(u => u.name !== 'Admin' && u.email !== 'karunakar.pothuganti@gmail.com'));
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, path);
       });
@@ -290,11 +242,7 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      if (IS_OFFLINE) {
-        localStorage.removeItem('offline_user');
-      } else {
-        await logOut();
-      }
+      await logOut();
       setUser(null);
       setUserData(null);
       setShowAdminDashboard(false);
@@ -308,47 +256,9 @@ export default function App() {
     e.preventDefault();
     setIsLoggingIn(true);
     try {
-      if (IS_OFFLINE) {
-        // Create a predictable UID from Student ID for the competition environment
-        const uid = `off_${loginForm.studentId}`;
-        const userObj = { uid, email: `${loginForm.studentId}@offline.local`, displayName: loginForm.name };
-
-        const newUserData: UserData = {
-          uid,
-          name: loginForm.name,
-          studentId: loginForm.studentId,
-          teamNo: loginForm.teamNo,
-          score: 0,
-          startTime: new Date().toISOString(),
-          completed: false,
-          lastActive: new Date().toISOString(),
-        };
-
-        // Check if user exists first to resume state
-        const existingRes = await fetch(`${LOCAL_API_URL}/users/${uid}`);
-        const existingData = await existingRes.json();
-
-        if (existingData) {
-          console.log('Resuming existing session:', existingData);
-          setUserData({ ...existingData, completed: !!existingData.completed });
-        } else {
-          console.log('Creating new session:', newUserData);
-          await fetch(`${LOCAL_API_URL}/users`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newUserData)
-          });
-          setUserData(newUserData);
-        }
-
-        setUser(userObj);
-        localStorage.setItem('offline_user', JSON.stringify(userObj));
-        return;
-      }
       const u = await signIn();
       const userDocRef = doc(db, 'users', u.uid);
       const userDoc = await getDoc(userDocRef);
-
       if (!userDoc.exists()) {
         const newUserData: UserData = {
           uid: u.uid,
@@ -377,43 +287,19 @@ export default function App() {
     if (!editingQuestion) return;
     setIsSavingQuestion(true);
     try {
-      if (IS_OFFLINE) {
-        const method = editingQuestion.id ? 'PUT' : 'POST';
-        const url = editingQuestion.id
-          ? `${LOCAL_API_URL}/questions/${editingQuestion.id}`
-          : `${LOCAL_API_URL}/questions`;
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingQuestion)
-        });
-        if (res.ok) {
-          await fetchQuestions();
-          setEditingQuestion(null);
-          alert('✅ Question saved successfully!');
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          alert(`❌ Failed to save: ${errData.error || res.statusText}`);
-        }
+      const firestoreId = (editingQuestion as any)._firestoreId;
+      const dataToSave = { ...editingQuestion };
+      delete (dataToSave as any)._firestoreId;
+      if (firestoreId) {
+        await setDoc(doc(db, 'questions', firestoreId), dataToSave, { merge: true });
       } else {
-        // Online mode: save to Firestore
-        const firestoreId = (editingQuestion as any)._firestoreId;
-        const dataToSave = { ...editingQuestion };
-        delete (dataToSave as any)._firestoreId;
-        if (firestoreId) {
-          // Update existing
-          await setDoc(doc(db, 'questions', firestoreId), dataToSave, { merge: true });
-        } else {
-          // New question: auto-generate next id
-          const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id || 0)) + 1 : 1;
-          await addDoc(collection(db, 'questions'), { ...dataToSave, id: newId });
-        }
-        await fetchQuestions();
-        setEditingQuestion(null);
-        alert('✅ Question saved to Firestore!');
+        const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id || 0)) + 1 : 1;
+        await addDoc(collection(db, 'questions'), { ...dataToSave, id: newId });
       }
+      await fetchQuestions();
+      setEditingQuestion(null);
+      alert('✅ Question saved!');
     } catch (error: any) {
-      console.error('Failed to save question:', error);
       alert(`❌ Save failed: ${error.message}`);
     } finally {
       setIsSavingQuestion(false);
@@ -421,20 +307,12 @@ export default function App() {
   };
 
   const handleDeleteQuestion = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this question?')) return;
+    if (!window.confirm('Delete this question?')) return;
     try {
-      if (IS_OFFLINE) {
-        const res = await fetch(`${LOCAL_API_URL}/questions/${id}`, { method: 'DELETE' });
-        if (res.ok) await fetchQuestions();
-      } else {
-        // Online mode: delete from Firestore using the _firestoreId
-        const q = questions.find(q => q.id === id) as any;
-        const firestoreId = q?._firestoreId;
-        if (firestoreId) {
-          await deleteDoc(doc(db, 'questions', firestoreId));
-        }
-        await fetchQuestions();
-      }
+      const q = questions.find(q => q.id === id) as any;
+      const firestoreId = q?._firestoreId;
+      if (firestoreId) await deleteDoc(doc(db, 'questions', firestoreId));
+      await fetchQuestions();
     } catch (error) {
       console.error('Failed to delete question:', error);
     }
@@ -465,68 +343,33 @@ export default function App() {
 
       if (isCorrect) {
         setOutput(prev => prev + '\n\n✅ CORRECT! Well done.');
-
-        // Update score if not already completed
         if (userData && !userData.completed) {
           const newScore = userData.score + currentQuestion.points;
-          if (IS_OFFLINE) {
-            await fetch(`${LOCAL_API_URL}/users`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...userData, score: newScore, lastActive: new Date().toISOString() })
-            });
-          } else {
-            const userDocRef = doc(db, 'users', userData.uid);
-            await setDoc(userDocRef, { ...userData, score: newScore }, { merge: true });
-          }
+          const userDocRef = doc(db, 'users', userData.uid);
+          await setDoc(userDocRef, { ...userData, score: newScore, lastActive: new Date().toISOString() }, { merge: true });
           setUserData(prev => prev ? { ...prev, score: newScore } : null);
-
-          // Move to next question or finish
           if (currentQuestionIndex < questions.length - 1) {
-            setTimeout(() => {
-              setShowLeaderboard(true);
-              setCurrentQuestionIndex(prev => prev + 1);
-              setOutput('');
-            }, 2000);
+            setTimeout(() => { setShowLeaderboard(true); setCurrentQuestionIndex(prev => prev + 1); setOutput(''); }, 2000);
           } else {
-            setTimeout(() => {
-              handleFinishChallenge();
-            }, 2000);
+            setTimeout(() => { handleFinishChallenge(); }, 2000);
           }
         }
       } else {
         setOutput(prev => prev + '\n\n❌ INCORRECT. Try again!');
       }
 
-      // Log submission
       if (user) {
-        if (IS_OFFLINE) {
-          await fetch(`${LOCAL_API_URL}/submissions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: user.uid,
-              questionId: currentQuestion.id,
-              code,
-              language,
-              status: isCorrect ? 'correct' : 'incorrect',
-              timestamp: new Date().toISOString()
-            })
+        try {
+          await addDoc(collection(db, 'submissions'), {
+            userId: user.uid,
+            questionId: currentQuestion.id,
+            code,
+            language,
+            status: isCorrect ? 'correct' : 'incorrect',
+            timestamp: new Date().toISOString()
           });
-        } else {
-          const path = 'submissions';
-          try {
-            await addDoc(collection(db, path), {
-              userId: user.uid,
-              questionId: currentQuestion.id,
-              code,
-              language,
-              status: isCorrect ? 'correct' : 'incorrect',
-              timestamp: new Date().toISOString()
-            });
-          } catch (error) {
-            handleFirestoreError(error, OperationType.WRITE, path);
-          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, 'submissions');
         }
       }
     } catch (error) {
@@ -538,16 +381,8 @@ export default function App() {
 
   const handleFinishChallenge = async () => {
     if (userData && !userData.completed) {
-      if (IS_OFFLINE) {
-        await fetch(`${LOCAL_API_URL}/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...userData, completed: true, lastActive: new Date().toISOString() })
-        });
-      } else {
-        const userDocRef = doc(db, 'users', userData.uid);
-        await setDoc(userDocRef, { ...userData, completed: true }, { merge: true });
-      }
+      const userDocRef = doc(db, 'users', userData.uid);
+      await setDoc(userDocRef, { ...userData, completed: true }, { merge: true });
       setUserData(prev => prev ? { ...prev, completed: true } : null);
       setShowLeaderboard(true);
     }
@@ -1062,9 +897,16 @@ export default function App() {
                     <button
                       onClick={async () => {
                         if (window.confirm("Are you SURE you want to reset the leaderboard? This clears all student scores!")) {
-                          await fetch(`${LOCAL_API_URL}/admin/reset`, { method: 'POST' });
-                          alert("Leaderboard Reset Successfully");
-                          setShowAdminDashboard(false);
+                          try {
+                            const snapshot = await getDocs(collection(db, 'users'));
+                            const resets = snapshot.docs.map(d =>
+                              setDoc(doc(db, 'users', d.id), { score: 0, completed: false }, { merge: true })
+                            );
+                            await Promise.all(resets);
+                            alert('✅ Leaderboard reset! All scores cleared.');
+                          } catch (err: any) {
+                            alert('❌ Reset failed: ' + err.message);
+                          }
                         }
                       }}
                       className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg text-sm hover:bg-red-700 transition"
