@@ -919,19 +919,40 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center px-4">
                       <h3 className="text-sm font-bold text-slate-600 uppercase tracking-widest">Questions List</h3>
-                      <button
-                        onClick={() => setEditingQuestion({
-                          title: '',
-                          description: '',
-                          points: 10,
-                          language: 'python',
-                          buggyCode: { python: '', java: '', c: '', cpp: '' },
-                          testCases: [{ input: '', expectedOutput: '' }]
-                        })}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
-                      >
-                        <Plus className="w-4 h-4" /> Add Question
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm('This will upload all 10 default questions to Firestore. Continue?')) return;
+                            try {
+                              const { QUESTIONS: staticQs } = await import('./questions');
+                              for (let i = 0; i < staticQs.length; i++) {
+                                const { id: _id, ...rest } = staticQs[i] as any;
+                                await addDoc(collection(db, 'questions'), { ...rest, id: i + 1 });
+                              }
+                              await fetchQuestions();
+                              alert('✅ All 10 questions seeded to Firestore!');
+                            } catch (err: any) {
+                              alert('❌ Seed failed: ' + err.message);
+                            }
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-slate-100 border border-slate-300 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+                        >
+                          ☁️ Seed Default Questions
+                        </button>
+                        <button
+                          onClick={() => setEditingQuestion({
+                            title: '',
+                            description: '',
+                            points: 10,
+                            language: 'python',
+                            buggyCode: { python: '', java: '', c: '', cpp: '' },
+                            testCases: [{ input: '', expectedOutput: '' }]
+                          })}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
+                        >
+                          <Plus className="w-4 h-4" /> Add Question
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
