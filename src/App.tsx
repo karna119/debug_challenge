@@ -1147,28 +1147,37 @@ export default function App() {
                               <div key={tcIdx} className="grid grid-cols-2 gap-4 bg-black/20 p-4 rounded-xl relative group">
                                 <div>
                                   <label className="block text-[8px] font-bold uppercase tracking-widest text-white/20 mb-1">Input</label>
-                                  <input
-                                    value={tc.input}
-                                    onChange={e => {
-                                      const newTcs = [...editingQuestion.testCases!];
-                                      newTcs[tcIdx].input = e.target.value;
-                                      setEditingQuestion({ ...editingQuestion, testCases: newTcs });
-                                    }}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50"
-                                  />
+                                  <div className="h-32 border border-white/10 rounded-lg overflow-hidden">
+                                    <Editor
+                                      height="100%"
+                                      language="plaintext"
+                                      theme="vs-dark"
+                                      value={tc.input}
+                                      onChange={v => {
+                                        const newTcs = [...editingQuestion.testCases!];
+                                        newTcs[tcIdx].input = v || '';
+                                        setEditingQuestion({ ...editingQuestion, testCases: newTcs });
+                                      }}
+                                      options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 }, lineNumbers: 'off' }}
+                                    />
+                                  </div>
                                 </div>
                                 <div>
                                   <label className="block text-[8px] font-bold uppercase tracking-widest text-white/20 mb-1">Expected Output</label>
-                                  <input
-                                    required
-                                    value={tc.expectedOutput}
-                                    onChange={e => {
-                                      const newTcs = [...editingQuestion.testCases!];
-                                      newTcs[tcIdx].expectedOutput = e.target.value;
-                                      setEditingQuestion({ ...editingQuestion, testCases: newTcs });
-                                    }}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-emerald-500/50"
-                                  />
+                                  <div className="h-32 border border-white/10 rounded-lg overflow-hidden">
+                                    <Editor
+                                      height="100%"
+                                      language="plaintext"
+                                      theme="vs-dark"
+                                      value={tc.expectedOutput}
+                                      onChange={v => {
+                                        const newTcs = [...editingQuestion.testCases!];
+                                        newTcs[tcIdx].expectedOutput = v || '';
+                                        setEditingQuestion({ ...editingQuestion, testCases: newTcs });
+                                      }}
+                                      options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 }, lineNumbers: 'off' }}
+                                    />
+                                  </div>
                                 </div>
                                 {tcIdx > 0 && (
                                   <button
