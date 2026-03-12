@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a participant in the coding challenge.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full Name" },
+        "studentId": { "type": "string", "description": "Student ID" },
+        "teamNo": { "type": "string", "description": "Team Number" },
+        "score": { "type": "number", "description": "Current score" },
+        "startTime": { "type": "string", "format": "date-time", "description": "When the user started the challenge" },
+        "completed": { "type": "boolean", "description": "Whether the challenge is finished" },
+        "lastActive": { "type": "string", "format": "date-time", "description": "Last activity timestamp" }
+      },
+      "required": ["uid", "name", "studentId", "teamNo"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A user's attempt at a question.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "questionId": { "type": "number", "description": "ID of the question" },
+        "code": { "type": "string", "description": "Submitted code" },
+        "language": { "type": "string", "description": "Programming language" },
+        "status": { "type": "string", "enum": ["correct", "incorrect", "error"], "description": "Result of the submission" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the submission occurred" }
+      },
+      "required": ["userId", "questionId", "code", "language", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and progress"
+    },
+    "/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "History of all user submissions"
+    }
+  }
+}

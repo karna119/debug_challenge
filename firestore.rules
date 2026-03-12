@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required) - Full Name
+    //   - studentId: string (required) - Student ID
+    //   - teamNo: string (required) - Team Number
+    //   - score: number (required) - Current score
+    //   - startTime: string (required) - ISO 8601 timestamp
+    //   - completed: boolean (required) - Whether the challenge is finished
+    //   - lastActive: string (required) - ISO 8601 timestamp
+    //
+    // Collection: submissions
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required) - UID of the user
+    //   - questionId: number (required) - ID of the question
+    //   - code: string (required) - Submitted code
+    //   - language: string (required) - Programming language
+    //   - status: string (required) - Result of the submission
+    //   - timestamp: string (required) - ISO 8601 timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "karunakar.pothuganti@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'studentId', 'teamNo', 'score', 'startTime', 'completed', 'lastActive']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.studentId is string && data.studentId.size() > 0 && data.studentId.size() < 50 &&
+             data.teamNo is string && data.teamNo.size() > 0 && data.teamNo.size() < 20 &&
+             data.score is number &&
+             data.startTime is string &&
+             data.completed is bool &&
+             data.lastActive is string;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll(['userId', 'questionId', 'code', 'language', 'status', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.questionId is number &&
+             data.code is string && data.code.size() < 10000 &&
+             data.language in ['java', 'c', 'cpp', 'python'] &&
+             data.status in ['correct', 'incorrect', 'error'] &&
+             data.timestamp is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Everyone can see the leaderboard
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidSubmission(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
