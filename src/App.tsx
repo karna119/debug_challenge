@@ -209,7 +209,7 @@ export default function App() {
       const fetchLeaderboard = () => {
         fetch(`${LOCAL_API_URL}/leaderboard`)
           .then(res => res.json())
-          .then(data => setLeaderboard(data));
+          .then(data => setLeaderboard(data.filter((u: UserData) => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com')));
       };
       fetchLeaderboard();
       const interval = setInterval(fetchLeaderboard, 5000);
@@ -219,7 +219,7 @@ export default function App() {
     const q = query(collection(db, path), orderBy('score', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data() as UserData);
-      setLeaderboard(data);
+      setLeaderboard(data.filter(u => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com'));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, path);
     });
@@ -229,11 +229,21 @@ export default function App() {
   // Admin: All users listener
   useEffect(() => {
     if (isAdminUser && user) {
+      if (IS_OFFLINE) {
+        const fetchAllUsers = () => {
+          fetch(`${LOCAL_API_URL}/admin/users`)
+            .then(res => res.json())
+            .then(data => setAllUsers(data.filter((u: UserData) => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com')));
+        };
+        fetchAllUsers();
+        const interval = setInterval(fetchAllUsers, 5000);
+        return () => clearInterval(interval);
+      }
       const path = 'users';
       const q = query(collection(db, path), orderBy('lastActive', 'desc'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => doc.data() as UserData);
-        setAllUsers(data);
+        setAllUsers(data.filter(u => u.uid !== 'off_ADMIN001' && u.name !== 'Admin' && u.uid !== 'karunakar.pothuganti@gmail.com'));
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, path);
       });
@@ -243,7 +253,7 @@ export default function App() {
 
   // Timer logic
   useEffect(() => {
-    if (userData && !userData.completed) {
+    if (userData && !userData.completed && !isAdminUser) {
       const start = new Date(userData.startTime).getTime();
       const interval = setInterval(() => {
         const now = Date.now();
@@ -608,12 +618,14 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5">
-            <Timer className={cn("w-4 h-4", timeLeft < 60 ? "text-red-500 animate-pulse" : "text-emerald-500")} />
-            <span className={cn("font-mono text-sm font-bold", timeLeft < 60 ? "text-red-500" : "text-white")}>
-              {formatTime(timeLeft)}
-            </span>
-          </div>
+          {!isAdminUser && (
+            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5">
+              <Timer className={cn("w-4 h-4", timeLeft < 60 ? "text-red-500 animate-pulse" : "text-emerald-500")} />
+              <span className={cn("font-mono text-sm font-bold", timeLeft < 60 ? "text-red-500" : "text-white")}>
+                {formatTime(timeLeft)}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-4">
             {isAdminUser && (
@@ -693,7 +705,7 @@ export default function App() {
 
         {/* Main Content - Editor */}
         <div className="flex-1 flex flex-col min-w-0">
-          {userData.completed ? (
+          {userData.completed && !isAdminUser ? (
             <div className="flex-1 flex items-center justify-center p-12">
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -1015,7 +1027,7 @@ export default function App() {
                               <p className="text-[10px] text-white/40">{q.points} points • {q.description.substring(0, 60)}...</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={() => setEditingQuestion(q)}
                               className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-emerald-500 transition-all"
@@ -1155,7 +1167,7 @@ export default function App() {
                                       value={tc.input}
                                       onChange={v => {
                                         const newTcs = [...editingQuestion.testCases!];
-                                        newTcs[tcIdx].input = v || '';
+                                        newTcs[tcIdx] = { ...newTcs[tcIdx], input: v || '' };
                                         setEditingQuestion({ ...editingQuestion, testCases: newTcs });
                                       }}
                                       options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 }, lineNumbers: 'off' }}
@@ -1172,7 +1184,7 @@ export default function App() {
                                       value={tc.expectedOutput}
                                       onChange={v => {
                                         const newTcs = [...editingQuestion.testCases!];
-                                        newTcs[tcIdx].expectedOutput = v || '';
+                                        newTcs[tcIdx] = { ...newTcs[tcIdx], expectedOutput: v || '' };
                                         setEditingQuestion({ ...editingQuestion, testCases: newTcs });
                                       }}
                                       options={{ fontSize: 12, minimap: { enabled: false }, padding: { top: 10 }, lineNumbers: 'off' }}
