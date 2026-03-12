@@ -141,6 +141,7 @@ export default function App() {
   const [adminTab, setAdminTab] = useState<'users' | 'questions'>('users');
   const [editingQuestion, setEditingQuestion] = useState<Partial<Question> | null>(null);
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+  const [dismissCompleted, setDismissCompleted] = useState(false);
 
   const isAdminUser = user?.email === 'karunakar.pothuganti@gmail.com' || (IS_OFFLINE && user?.uid === 'off_ADMIN001');
 
@@ -373,9 +374,14 @@ export default function App() {
       if (res.ok) {
         await fetchQuestions();
         setEditingQuestion(null);
+        alert('✅ Question saved successfully!');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(`❌ Failed to save: ${errData.error || res.statusText}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save question:', error);
+      alert(`❌ Save failed: ${error.message}. Make sure the local server is running.`);
     } finally {
       setIsSavingQuestion(false);
     }
@@ -706,7 +712,7 @@ export default function App() {
 
         {/* Main Content - Editor */}
         <div className="flex-1 flex flex-col min-w-0">
-          {userData.completed && !isAdminUser ? (
+          {userData.completed && !isAdminUser && !dismissCompleted ? (
             <div className="flex-1 flex items-center justify-center p-12">
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -729,6 +735,12 @@ export default function App() {
                   className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
                 >
                   View Leaderboard
+                </button>
+                <button
+                  onClick={() => setDismissCompleted(true)}
+                  className="w-full py-3 rounded-xl border border-slate-300 text-slate-600 font-bold hover:bg-slate-100 transition-colors text-sm"
+                >
+                  ✕ Continue Working on Questions
                 </button>
               </motion.div>
             </div>
