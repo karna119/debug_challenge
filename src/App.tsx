@@ -400,7 +400,7 @@ export default function App() {
       setLanguage(currentQuestion.language || 'python');
       setCode(currentQuestion.buggyCode[currentQuestion.language as keyof typeof currentQuestion.buggyCode] || '');
     }
-  }, [currentQuestionIndex]);
+  }, [currentQuestionIndex, questions]);
 
   const handleRunCode = async () => {
     setIsCompiling(true);
